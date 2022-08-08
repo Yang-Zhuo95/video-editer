@@ -47,8 +47,8 @@ public class FfmPegMergeExecutor {
 
     @PostConstruct
     public void init() {
-        BOSS_EXECUTOR.scheduleAtFixedRate(getRunnable(FfmPegMergeConfig.MAX_TASK_SIZE), 0L
-                , FfmPegMergeConfig.PERIOD, TimeUnit.MILLISECONDS);
+        BOSS_EXECUTOR.scheduleAtFixedRate(getRunnable(FfmPegMergeConfig.MAX_TASK_SIZE), 0L,
+                FfmPegMergeConfig.PERIOD, TimeUnit.MILLISECONDS);
     }
 
     private Runnable getRunnable(int maxTaskSize) {
@@ -68,6 +68,7 @@ public class FfmPegMergeExecutor {
             Map<Actuator, List<FutureModel<Actuator, Integer>>> actuatorMap = futureModels.stream()
                     .collect(Collectors.groupingBy(FutureModel::getActuator));
             // 遍历执行
+            List<CompletableFuture<Integer>> futures = new ArrayList<>();
             for (Actuator actuator : actuatorMap.keySet()) {
                 // 对于参数重复的任务, 只执行一次
                 CompletableFuture<Integer> future = CompletableFuture.supplyAsync(actuator::execute, WORK_EXECUTOR);
@@ -87,7 +88,10 @@ public class FfmPegMergeExecutor {
                         f.getFuture().complete(result);
                     });
                 });
+                futures.add(future);
             }
+            // 阻塞等待当前任务列表执行完成
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
         };
     }
 
