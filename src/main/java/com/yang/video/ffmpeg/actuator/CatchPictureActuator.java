@@ -43,8 +43,10 @@ public class CatchPictureActuator extends BaseActuator {
         if (file.exists()) {
             FfmPegCache.putFile(catchPictureFo, file);
             return result;
+        } else {
+            FfmPegCache.putFile(catchPictureFo, null);
+            return FfmpegUtil.CODE_FAIL;
         }
-        return result;
     }
 
     @Override

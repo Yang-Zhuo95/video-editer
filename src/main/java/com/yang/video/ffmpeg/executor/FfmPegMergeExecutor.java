@@ -91,7 +91,7 @@ public class FfmPegMergeExecutor {
                 futures.add(future);
             }
             // 阻塞等待当前任务列表执行完成
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         };
     }
 
