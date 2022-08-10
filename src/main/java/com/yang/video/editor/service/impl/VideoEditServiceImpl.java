@@ -124,9 +124,11 @@ public class VideoEditServiceImpl implements VideoEditService {
                 resp.setContentType("image/png");
                 sourceChannel = sourceFile.getChannel();
                 respChannel = Channels.newChannel(resp.getOutputStream());
-                for (long count = sourceChannel.size(); count > 0; ) {
-                    count -= sourceChannel.transferTo(sourceChannel.position(), count, respChannel);
-                }
+                // 一般图片大小不会超过2.5GB
+                // for (long count = sourceChannel.size(); count > 0; ) {
+                //     count -= sourceChannel.transferTo(sourceChannel.position(), count, respChannel);
+                // }
+                sourceChannel.transferTo(sourceChannel.position(), sourceChannel.size(), respChannel);
             } catch (IOException e) {
                 String msg;
                 if (e instanceof FileNotFoundException) {
