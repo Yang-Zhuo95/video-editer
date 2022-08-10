@@ -1,6 +1,5 @@
 package com.yang.video.editor.service.impl;
 
-import cn.hutool.core.io.IoUtil;
 import com.yang.video.common.exception.CustomizeException;
 import com.yang.video.common.exception.DataInconsistentException;
 import com.yang.video.editor.fo.CatchPictureFo;
@@ -24,10 +23,12 @@ import org.springframework.stereotype.Service;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletResponse;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.OutputStream;
+import java.io.RandomAccessFile;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
+import java.nio.channels.WritableByteChannel;
 import java.util.Objects;
 
 /**
@@ -111,29 +112,41 @@ public class VideoEditServiceImpl implements VideoEditService {
             Actuator actuator = new CatchPictureActuator(catchPictureFo);
             result = FfmPegMergeExecutor.execute(actuator);
             tempFile = actuator.getOutputFile();
-        } else if (Objects.nonNull(tempFile)) {
+        } else if (Objects.nonNull(tempFile) && tempFile.exists()) {
             result = 0;
         }
+
         if (FfmpegUtil.CODE_SUCCESS.equals(result)) {
-            OutputStream os = null;
-            try (FileInputStream in = new FileInputStream(tempFile)) {
+            FileChannel sourceChannel = null;
+            WritableByteChannel respChannel = null;
+            try (RandomAccessFile sourceFile = new RandomAccessFile(tempFile, "r")) {
                 //读取图片
                 resp.setContentType("image/png");
-                os = resp.getOutputStream();
-                FfmPegCache.putFile(catchPictureFo, tempFile);
-                IoUtil.copy(in, os);
-            } catch (FileNotFoundException e) {
-                log.error("生成图片异常{}", e.getMessage());
-                FfmPegCache.putFile(catchPictureFo, null);
+                sourceChannel = sourceFile.getChannel();
+                respChannel = Channels.newChannel(resp.getOutputStream());
+                for (long count = sourceChannel.size(); count > 0; ) {
+                    count -= sourceChannel.transferTo(sourceChannel.position(), count, respChannel);
+                }
             } catch (IOException e) {
-                log.error("获取图片异常{}", e.getMessage());
+                String msg;
+                if (e instanceof FileNotFoundException) {
+                    msg = "生成图片异常";
+                } else {
+                    msg = "获取图片异常";
+                }
+                log.error(msg + "{}", e.getMessage());
                 // 重置response
                 resp.reset();
                 resp.setContentType("application/json");
                 resp.setCharacterEncoding("utf-8");
-                throw new DataInconsistentException("获取图片异常");
+                throw new DataInconsistentException(msg);
             } finally {
-                IoUtil.close(os);
+                if (Objects.nonNull(respChannel)) {
+                    respChannel.close();
+                }
+                if (Objects.nonNull(sourceChannel)) {
+                    sourceChannel.close();
+                }
             }
         } else {
             throw new CustomizeException("图片截取失败");
